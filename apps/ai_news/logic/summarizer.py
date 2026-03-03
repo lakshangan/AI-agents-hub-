@@ -14,7 +14,7 @@ class SummarizerAgent(BaseAgent):
         if self.api_key:
             self.log("Gemini API key found. Initializing AI engine...")
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            self.model = genai.GenerativeModel('gemini-1.5-pro')
         else:
             self.log("No Gemini API key found. Defaulting to Mock mode.")
             self.use_mock = True

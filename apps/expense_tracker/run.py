@@ -15,21 +15,29 @@ load_dotenv()
 async def main():
     print("🚀 Initializing Personal Finance 'Leak' Agents...")
 
-    # Simulated input: Raw text from a bank statement or copy-pasted info
-    # In a real app, this would come from a file upload or input field.
-    raw_statement_text = """
-    Date: 2024-03-01 Description: Amazon Prime Amount: 14.99
-    Date: 2024-03-02 Description: Starbucks Amount: 6.50
-    Date: 2024-03-05 Description: Netflix Amount: 19.99
-    Date: 2024-03-10 Description: OpenAI GPT Plus Amount: 20.00
-    Date: 2024-03-12 Description: Starbucks Amount: 7.25
-    Date: 2024-03-14 Description: LinkedIn Premium Amount: 39.99
-    Date: 2024-03-15 Description: Starbucks Amount: 5.50
-    """
+    # Ask for statement or use default fake
+    default_path = "apps/expense_tracker/fake_statement.csv"
+    file_path = input(f"📂 Please enter your statement file (default: {default_path}): ").strip()
+    if not file_path: file_path = default_path
+    
+    if not os.path.exists(file_path):
+        print(f"❌ Error: File '{file_path}' not found. Please check the path and try again.")
+        return
+
+    try:
+        with open(file_path, 'r') as f:
+            raw_statement_text = f.read()
+    except Exception as e:
+        print(f"❌ Failed to read file: {e}")
+        return
 
     # 1. Statement Parser: Converts messy text to structured transactions
     parser = StatementParserAgent()
     transactions = await parser.run(raw_statement_text)
+
+    if not transactions:
+        print("⚠️ No transactions could be parsed from the file content.")
+        return
 
     # 2. Leak Detector: Categorizes and finds "leaks"
     detector = LeakDetectorAgent()

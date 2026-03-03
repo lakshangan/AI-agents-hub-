@@ -11,36 +11,42 @@ class LeakDetectorAgent(BaseAgent):
         super().__init__("LeakDetector")
         self.api_key = os.getenv("GEMINI_API_KEY")
         genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model = genai.GenerativeModel('gemini-1.5-pro')
 
     async def run(self, transactions: List[Transaction]) -> List[FinancialInsight]:
         self.log(f"Searching for 'leaks' in {len(transactions)} items...")
         
-        # Prepare data for model
-        tx_data = [tx.dict() for tx in transactions]
-        
-        prompt = f"""
-        Identify at least 2 money 'leaks' from this data.
-        A 'leak' is:
-        - A subscription you can do without.
-        - High-frequency small charges (like coffee, snacks) that add up.
-        - High transaction fees or sudden amount hikes.
-        
-        Return a JSON list of objects with:
-        'category', 'summary', 'impact_score' (0.1 to 1.0), 'suggestion'.
-        Data: {json.dumps(tx_data)}
-        ONLY return JSON:
-        """
-        
         try:
+            tx_data = [tx.dict() for tx in transactions]
+            prompt = f"Identify 2 money leaks (JSON: category, summary, impact_score, suggestion) from: {json.dumps(tx_data)}"
             response = await asyncio.to_thread(self.model.generate_content, prompt)
             text_data = response.text.strip().replace("```json", "").replace("```", "")
             data = json.loads(text_data)
-            
-            insights = [FinancialInsight(**item) for item in data]
-            self.log(f"Identified {len(insights)} potential financial leaks.")
-            return insights
-        except Exception as e:
-            self.error(f"Leak Detection Failed: {e}")
-            return []
+            return [FinancialInsight(**item) for item in data]
+        except Exception:
+            self.error("AI Leak Detection Failed. Switching to Synthetic Insight...")
+            return self._synthetic_detect(transactions)
+
+    def _synthetic_detect(self, transactions: List[Transaction]) -> List[FinancialInsight]:
+        insights = []
+        # Logical check for common leak types
+        subscriptions = [t for t in transactions if t.is_subscription]
+        if subscriptions:
+            insights.append(FinancialInsight(
+                category="Subscriptions",
+                summary=f"Found {len(subscriptions)} recurring payments totaling ${sum(s.amount for s in subscriptions)}",
+                impact_score=0.8,
+                suggestion="Review your Netflix and Prime accounts to see if you use them enough to justify the price."
+            ))
+        
+        food = [t for t in transactions if any(x in t.description.upper() for x in ["SWIGGY", "ZOMATO", "STARBUCKS", "FOOD"])]
+        if food:
+            total_food = sum(f.amount for f in food)
+            insights.append(FinancialInsight(
+                category="Dining Out",
+                summary=f"Detected {len(food)} food orders totaling ${total_food}. These small frequent habits 'leak' cash over time.",
+                impact_score=0.6,
+                suggestion="Try meal prepping 2 days a week to lower your monthly Swiggy/Zomato bills."
+            ))
+        return insights
         
